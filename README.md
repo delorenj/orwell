@@ -7,6 +7,7 @@ Headless, stealth browser automation for the Triumph (Saashr) clock-in/clock-out
 - [Camoufox](https://camoufox.com/) — anti-detect Firefox fork (C++-level fingerprint spoofing)
 - [Playwright](https://playwright.dev/python/) — browser control
 - `python-dotenv` — local credential management
+- `pyotp` — TOTP code generation for MFA
 
 ## Setup
 
@@ -21,7 +22,15 @@ camoufox fetch
 
 ```bash
 cp .env.example .env
-# edit .env with your Triumph credentials
+# edit .env with your Triumph credentials and TOTP secret
+```
+
+The `.env` needs three values:
+
+```dotenv
+TRIUMPH_USERNAME=your_username
+TRIUMPH_PASSWORD=your_password
+TRIUMPH_TOTP_SECRET=YOUR_TOTP_SECRET
 ```
 
 ## Usage
@@ -51,4 +60,6 @@ All screenshots are written to `outputs/`.
 
 - Credentials are read from `.env` and never committed (see `.gitignore`).
 - The login script fills the visible password field (`PasswordView`); the portal's JavaScript copies it into the hidden `Password` field before submission.
-- The clock-action script discovers buttons by text (`clock in`, `clock out`, etc.) so it can adapt if selectors change.
+- MFA is handled automatically: the script selects the **Authenticator app** option, generates a TOTP code from `TRIUMPH_TOTP_SECRET`, and submits it.
+- The clock-action script discovers buttons by text (`clock in`, `clock out`, etc.) and confirms any missing-punch warning dialog by clicking **Save**.
+- To avoid re-entering MFA on every run, the script checks **Remember this device for 30 days** during MFA.

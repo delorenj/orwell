@@ -1,45 +1,23 @@
 import asyncio
-import os
-import sys
 
-from dotenv import load_dotenv
 from camoufox.async_api import AsyncCamoufox
 
-load_dotenv()
-
-TARGET = (
-    "https://secure5.saashr.com/ta/CH50003.home?rnd=TUZ&showAdmin=1"
-    "&Ext=login&sft=HOSCCFOFIU&ActiveSessionId=25425500678#time/timesheet/timesheets"
-    "?tab=TIME_ENTRY&tsId=21935049240"
-)
-
-
-def require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        print(f"Error: {name} is not set. Add it to .env.", file=sys.stderr)
-        sys.exit(1)
-    return value
+from auth import log_in
 
 
 async def main():
-    username = require_env("TRIUMPH_USERNAME")
-    password = require_env("TRIUMPH_PASSWORD")
-
     async with AsyncCamoufox(headless=True, humanize=True) as browser:
         context = await browser.new_context()
         page = await context.new_page()
-        await page.goto(TARGET, wait_until="networkidle")
 
-        await page.fill("input[name='Username']", username)
-        await page.fill("input[name='PasswordView']", password)
+        await log_in(page)
 
-        # The form copies PasswordView into the hidden Password field on submit.
-        await page.click("button[name='LoginButton']")
+        # Navigate to the target timesheet view now that we are authenticated.
+        await page.evaluate(
+            "() => { window.location.hash = 'time/timesheet/timesheets?tab=TIME_ENTRY&tsId=21935049240'; }"
+        )
         await page.wait_for_load_state("networkidle")
-
-        # Additional wait for any client-side routing/rendering.
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(4000)
 
         await page.screenshot(path="outputs/portal_logged_in.png", full_page=True)
         print("Post-login URL:", page.url)

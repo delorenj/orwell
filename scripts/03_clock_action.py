@@ -1,37 +1,9 @@
 import asyncio
-import os
 import sys
 
-from dotenv import load_dotenv
 from camoufox.async_api import AsyncCamoufox
 
-load_dotenv()
-
-TARGET = (
-    "https://secure5.saashr.com/ta/CH50003.home?rnd=TUZ&showAdmin=1"
-    "&Ext=login&sft=HOSCCFOFIU&ActiveSessionId=25425500678#time/timesheet/timesheets"
-    "?tab=TIME_ENTRY&tsId=21935049240"
-)
-
-
-def require_env(name: str) -> str:
-    value = os.environ.get(name)
-    if not value:
-        print(f"Error: {name} is not set. Add it to .env.", file=sys.stderr)
-        sys.exit(1)
-    return value
-
-
-async def log_in(page):
-    username = require_env("TRIUMPH_USERNAME")
-    password = require_env("TRIUMPH_PASSWORD")
-
-    await page.goto(TARGET, wait_until="networkidle")
-    await page.fill("input[name='Username']", username)
-    await page.fill("input[name='PasswordView']", password)
-    await page.click("button[name='LoginButton']")
-    await page.wait_for_load_state("networkidle")
-    await page.wait_for_timeout(3000)
+from auth import log_in
 
 
 async def discover_clock_buttons(page):
@@ -53,6 +25,14 @@ async def perform_clock_action(action: str):
         page = await context.new_page()
 
         await log_in(page)
+
+        # Navigate to the timesheet view where the clock buttons live.
+        await page.evaluate(
+            "() => { window.location.hash = 'time/timesheet/timesheets?tab=TIME_ENTRY&tsId=21935049240'; }"
+        )
+        await page.wait_for_load_state("networkidle")
+        await page.wait_for_timeout(4000)
+
         await page.screenshot(path="outputs/portal_logged_in.png", full_page=True)
 
         candidates = await discover_clock_buttons(page)
@@ -75,6 +55,20 @@ async def perform_clock_action(action: str):
         await chosen.click()
         await page.wait_for_load_state("networkidle")
         await page.wait_for_timeout(2000)
+
+        # Confirm any "Are you sure?" / missing-punch modal.
+        try:
+            save_buttons = page.locator("button:has-text('Save')")
+            count = await save_buttons.count()
+            for i in range(count - 1, -1, -1):
+                btn = save_buttons.nth(i)
+                if await btn.is_visible(timeout=2000):
+                    await btn.click()
+                    await page.wait_for_load_state("networkidle")
+                    await page.wait_for_timeout(2000)
+                    break
+        except Exception:
+            pass
 
         await page.screenshot(path=f"outputs/clock_{action}.png", full_page=True)
         print(f"Clock-{action} screenshot saved to outputs/clock_{action}.png")
