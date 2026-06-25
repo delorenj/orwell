@@ -3,6 +3,7 @@ import sys
 
 import pyotp
 from dotenv import load_dotenv
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 load_dotenv()
 
@@ -48,24 +49,36 @@ async def navigate_to_timesheet(page):
     await _wait_for_authenticated_page(page)
 
 
-async def log_in(page, username: str | None = None, password: str | None = None):
+async def log_in(page, username: str | None = None, password: str | None = None, attempts: int = 2):
     if username is None:
         username = require_env("TRIUMPH_USERNAME")
     if password is None:
         password = require_env("TRIUMPH_PASSWORD")
 
-    await navigate_to_login(page)
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            await navigate_to_login(page)
+            await page.fill(LOGIN_FORM_SELECTOR, username)
+            await page.fill(PASSWORD_INPUT_SELECTOR, password)
+            await page.click(LOGIN_BUTTON_SELECTOR)
+            await page.wait_for_load_state("networkidle")
 
-    await page.fill(LOGIN_FORM_SELECTOR, username)
-    await page.fill(PASSWORD_INPUT_SELECTOR, password)
-    await page.click(LOGIN_BUTTON_SELECTOR)
-    await page.wait_for_load_state("networkidle")
+            if await page.locator(MFA_CODE_SELECTOR).count() or "isMFALogin=true" in page.url:
+                await _handle_mfa(page)
 
-    # Handle MFA challenge if presented.
-    if await page.locator(MFA_CODE_SELECTOR).count() or "isMFALogin=true" in page.url:
-        await _handle_mfa(page)
+            await _wait_for_authenticated_page(page)
+            return
+        except Exception as exc:
+            last_error = exc
+            if attempt == attempts:
+                break
+            try:
+                await page.goto("about:blank", wait_until="load")
+            except Exception:
+                pass
 
-    await _wait_for_authenticated_page(page)
+    raise RuntimeError(f"Login failed after {attempts} attempts: {last_error}") from last_error
 
 
 async def _handle_mfa(page):
@@ -82,7 +95,6 @@ async def _handle_mfa(page):
         await _click_with_js_fallback(page, continue_button, "continueButton")
 
     await page.wait_for_load_state("networkidle")
-
     await page.wait_for_selector(MFA_CODE_SELECTOR, state="visible")
     await page.fill(MFA_CODE_SELECTOR, totp_code)
 
@@ -93,7 +105,6 @@ async def _handle_mfa(page):
 
     verify_button = page.locator("button#AuthenticateTOTPButton")
     await _click_with_js_fallback(page, verify_button, "AuthenticateTOTPButton", force_enable=True)
-
     await page.wait_for_load_state("networkidle")
 
 
@@ -135,6 +146,7 @@ async def dump_interactive_elements(page, limit: int = 50):
 
 
 async def _wait_for_authenticated_page(page):
+    await page.wait_for_load_state("domcontentloaded")
     await page.wait_for_function(
         """([loginSelector, mfaSelector]) => {
             const loginInput = document.querySelector(loginSelector);
@@ -151,7 +163,7 @@ async def _wait_for_authenticated_page(page):
             return Boolean(document.body && document.body.innerText.trim().length > 0);
         }""",
         arg=[LOGIN_FORM_SELECTOR, MFA_CODE_SELECTOR],
-        timeout=20_000,
+        timeout=30_000,
     )
 
     login_input = page.locator(LOGIN_FORM_SELECTOR).first
@@ -165,7 +177,10 @@ async def _wait_for_authenticated_page(page):
         "unable to sign in",
         "login failed",
     ]
-    page_text = (await page.locator("body").inner_text()).lower()
+    try:
+        page_text = (await page.locator("body").inner_text(timeout=5_000)).lower()
+    except PlaywrightTimeoutError:
+        page_text = ""
     for message in login_errors:
         if message in page_text:
             raise RuntimeError(f"Login failed: portal reported '{message}'")

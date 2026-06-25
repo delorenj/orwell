@@ -18,11 +18,12 @@ case "$action" in
     ;;
 esac
 
-REPO="/home/delorenj/code/clockin"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$REPO/outputs/cron"
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 LOG_FILE="$LOG_DIR/${tag}_${STAMP}.log"
-LOCK_FILE="/tmp/clockin-automation.lock"
+LOCK_FILE="/tmp/orwell-automation.lock"
 SCREENSHOT="$REPO/outputs/${screenshot_name}"
 TODAY="$(date '+%Y-%m-%d')"
 

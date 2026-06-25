@@ -1,9 +1,10 @@
 import asyncio
 import sys
+from pathlib import Path
 
 from camoufox.async_api import AsyncCamoufox
 
-sys.path.insert(0, "/home/delorenj/code/clockin/scripts")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from auth import log_in, navigate_to_timesheet
 
 

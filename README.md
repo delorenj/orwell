@@ -1,6 +1,6 @@
-# Triumph Clock-In Automation
+# Orwell
 
-Headless, stealth browser automation for the Triumph (Saashr) clock-in/clock-out portal.
+Orwell is headless, stealth browser automation for the Triumph (Saashr) clock-in/clock-out portal.
 
 ## Stack
 
@@ -55,6 +55,41 @@ python scripts/03_clock_action.py out
 ```
 
 All screenshots are written to `outputs/`.
+
+## n8n node
+
+This repo now includes a custom n8n node package under `nodes/Orwell/` and `dist/`.
+
+Build it with:
+
+```bash
+npm install
+npm run build
+```
+
+The node exposes one Orwell node with two operations:
+
+- `Clock In`
+- `Clock Out`
+
+Runtime parameters:
+
+- `Repository Path` — absolute path to the Orwell repo
+- `Python Path` — optional override for the Python executable
+- `Timeout Seconds` — max wait for the browser automation run
+
+The node executes `scripts/03_clock_action.py` and returns the action, paths, stdout, stderr, and screenshot path in the n8n item output.
+
+Implementation notes:
+
+- This uses n8n's documented programmatic node shape with a `description` object plus `execute()` method.
+- The package registers its compiled node through the `n8n.nodes` array in `package.json`.
+
+Sources:
+
+- https://docs.n8n.io/integrations/creating-nodes/build/reference/node-base-files/structure
+- https://docs.n8n.io/integrations/creating-nodes/build/programmatic-style-node
+- https://github.com/n8n-io/n8n-nodes-starter
 
 ## Notes
 

@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="/home/delorenj/code/clockin"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$REPO/outputs/cron"
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 LOG_FILE="$LOG_DIR/clock_in_once_${STAMP}.log"
-LOCK_FILE="/tmp/clockin-automation.lock"
+LOCK_FILE="/tmp/orwell-automation.lock"
 
 mkdir -p "$LOG_DIR"
 cd "$REPO"

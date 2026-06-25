@@ -24,11 +24,12 @@ if ! [[ "$max_jitter_seconds" =~ ^[0-9]+$ ]]; then
   exit 2
 fi
 
-REPO="/home/delorenj/code/clockin"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+REPO="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 LOG_DIR="$REPO/outputs/cron"
 STAMP="$(date '+%Y%m%d-%H%M%S')"
 LOG_FILE="$LOG_DIR/${tag}_${STAMP}.log"
-LOCK_FILE="/tmp/clockin-automation.lock"
+LOCK_FILE="/tmp/orwell-automation.lock"
 SCREENSHOT="$REPO/outputs/${screenshot_name}"
 
 mkdir -p "$LOG_DIR"

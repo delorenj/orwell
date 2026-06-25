@@ -1,0 +1,27 @@
+{
+  "name": "n8n-nodes-orwell",
+  "version": "0.1.0",
+  "description": "n8n community node for Orwell clock-in and clock-out automation.",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "dist/nodes/Orwell/Orwell.node.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && mkdir -p dist/nodes/Orwell && cp nodes/Orwell/orwell.svg nodes/Orwell/Orwell.node.json dist/nodes/Orwell/",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "n8n-workflow": "^2.16.0"
+  },
+  "n8n": {
+    "nodes": [
+      "dist/nodes/Orwell/Orwell.node.js"
+    ]
+  }
+}

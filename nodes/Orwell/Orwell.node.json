@@ -1,0 +1,15 @@
+{
+  "node": "n8n-nodes-orwell.orwell",
+  "nodeVersion": "1.0",
+  "codexVersion": "1.0",
+  "categories": [
+    "Productivity"
+  ],
+  "resources": {
+    "primaryDocumentation": [
+      {
+        "url": "https://github.com/delorenj/orwell"
+      }
+    ]
+  }
+}

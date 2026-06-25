@@ -1,10 +1,10 @@
-# Triumph Clock-In/Clock-Out Automation
+# Orwell
 
 <https://secure5.saashr.com/ta/CH50003.home?rnd=TUZ&showAdmin=1&Ext=login&sft=HOSCCFOFIU&ActiveSessionId=25425500678#time/timesheet/timesheets?tab=TIME_ENTRY&tsId=21935049240>
 
 ## Overview
 
-I need to find a way to automate the browser flow to log in to the Clock-In/Clock-Out system and then perform both the Clock-In and Clock-Out actions.
+Orwell needs to automate the browser flow to log in to the Clock-In/Clock-Out system and then perform both the Clock-In and Clock-Out actions.
 
 ## Preliminary Plan
 
