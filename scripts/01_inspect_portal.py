@@ -1,18 +1,14 @@
 import asyncio
 from camoufox.async_api import AsyncCamoufox
 
-TARGET = (
-    "https://secure5.saashr.com/ta/CH50003.home?rnd=TUZ&showAdmin=1"
-    "&Ext=login&sft=HOSCCFOFIU&ActiveSessionId=25425500678#time/timesheet/timesheets"
-    "?tab=TIME_ENTRY&tsId=21935049240"
-)
+from auth import BASE_URL
 
 
 async def main():
     async with AsyncCamoufox(headless=True, humanize=True) as browser:
         context = await browser.new_context()
         page = await context.new_page()
-        await page.goto(TARGET, wait_until="networkidle")
+        await page.goto(BASE_URL, wait_until="networkidle")
         await page.screenshot(path="outputs/portal_initial.png", full_page=True)
         print("Title:", await page.title())
         print("URL:", page.url)
@@ -29,9 +25,6 @@ async def main():
             print(
                 f"[{i}] {tag} id={id_!r} name={name!r} class={cls!r} type={type_!r} text={text!r}"
             )
-
-        await browser.close()
-
 
 if __name__ == "__main__":
     asyncio.run(main())

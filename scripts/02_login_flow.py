@@ -2,7 +2,7 @@ import asyncio
 
 from camoufox.async_api import AsyncCamoufox
 
-from auth import log_in
+from auth import log_in, navigate_to_timesheet
 
 
 async def main():
@@ -12,12 +12,7 @@ async def main():
 
         await log_in(page)
 
-        # Navigate to the target timesheet view now that we are authenticated.
-        await page.evaluate(
-            "() => { window.location.hash = 'time/timesheet/timesheets?tab=TIME_ENTRY&tsId=21935049240'; }"
-        )
-        await page.wait_for_load_state("networkidle")
-        await page.wait_for_timeout(4000)
+        await navigate_to_timesheet(page)
 
         await page.screenshot(path="outputs/portal_logged_in.png", full_page=True)
         print("Post-login URL:", page.url)
@@ -36,9 +31,6 @@ async def main():
             print(
                 f"[{i}] {tag} id={id_!r} name={name!r} class={cls!r} type={type_!r} text={text!r}"
             )
-
-        await browser.close()
-
 
 if __name__ == "__main__":
     asyncio.run(main())
