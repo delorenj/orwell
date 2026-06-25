@@ -10,6 +10,7 @@ ACTION_LABELS = {
     "in": ("clock in", "clock-in", "punch in"),
     "out": ("clock out", "clock-out", "punch out"),
 }
+ALL_ACTION_LABELS = tuple(label for labels in ACTION_LABELS.values() for label in labels)
 
 SUCCESS_HINTS = (
     "success",
@@ -39,6 +40,16 @@ async def _button_snapshot(button):
     )
 
 
+def _button_label_score(text: str) -> int:
+    score = 0
+    for labels in ACTION_LABELS.values():
+        if text in labels:
+            score = max(score, 3)
+        elif any(label in text for label in labels):
+            score = max(score, 2)
+    return score
+
+
 async def discover_clock_buttons(page):
     """Return visible, enabled clock action buttons ranked by label quality."""
     buttons = await page.query_selector_all("button")
@@ -61,13 +72,7 @@ async def discover_clock_buttons(page):
         if text in {"save", "cancel", "close"}:
             continue
 
-        score = 0
-        for labels in ACTION_LABELS.values():
-            if text in labels:
-                score = max(score, 3)
-            elif any(label in text for label in labels):
-                score = max(score, 2)
-
+        score = _button_label_score(text)
         if score:
             candidates.append({"button": btn, "text": text, "score": score})
 
@@ -226,7 +231,7 @@ async def wait_for_clock_controls(page):
                 return visible && labels.some((label) => text.includes(label));
             });
         }""",
-        arg=[label for labels in ACTION_LABELS.values() for label in labels],
+        arg=ALL_ACTION_LABELS,
         timeout=20_000,
     )
 

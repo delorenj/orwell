@@ -2,7 +2,7 @@ import asyncio
 
 from camoufox.async_api import AsyncCamoufox
 
-from auth import log_in, navigate_to_timesheet
+from auth import dump_interactive_elements, log_in, navigate_to_timesheet
 
 
 async def main():
@@ -19,18 +19,7 @@ async def main():
         print("Title:", await page.title())
 
         # Dump interactive elements on the post-login page for clock-action discovery.
-        elements = await page.query_selector_all("input, button, a, select")
-        print(f"\nFound {len(elements)} interactive elements. First 50:")
-        for i, el in enumerate(elements[:50]):
-            tag = await el.evaluate("e => e.tagName")
-            text = await el.evaluate("e => (e.innerText || '').slice(0,80)")
-            id_ = await el.get_attribute("id") or ""
-            name = await el.get_attribute("name") or ""
-            cls = await el.get_attribute("class") or ""
-            type_ = await el.get_attribute("type") or ""
-            print(
-                f"[{i}] {tag} id={id_!r} name={name!r} class={cls!r} type={type_!r} text={text!r}"
-            )
+        await dump_interactive_elements(page)
 
 if __name__ == "__main__":
     asyncio.run(main())

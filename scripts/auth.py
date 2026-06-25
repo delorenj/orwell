@@ -9,8 +9,10 @@ load_dotenv()
 BASE_URL = "https://secure5.saashr.com/ta/CH50003.home?showAdmin=1&Ext=login&sft=HOSCCFOFIU"
 TIMESHEET_HASH = "time/timesheet/timesheets?tab=TIME_ENTRY"
 LOGIN_FORM_SELECTOR = "input[name='Username']"
+PASSWORD_INPUT_SELECTOR = "input[name='PasswordView']"
 LOGIN_BUTTON_SELECTOR = "button[name='LoginButton']"
 MFA_CODE_SELECTOR = "input[name='VerificationCode']"
+INTERACTIVE_SELECTOR = "input, button, a, select"
 
 
 def require_env(name: str) -> str:
@@ -54,8 +56,8 @@ async def log_in(page, username: str | None = None, password: str | None = None)
 
     await navigate_to_login(page)
 
-    await page.fill("input[name='Username']", username)
-    await page.fill("input[name='PasswordView']", password)
+    await page.fill(LOGIN_FORM_SELECTOR, username)
+    await page.fill(PASSWORD_INPUT_SELECTOR, password)
     await page.click(LOGIN_BUTTON_SELECTOR)
     await page.wait_for_load_state("networkidle")
 
@@ -77,13 +79,7 @@ async def _handle_mfa(page):
 
     continue_button = page.locator("button#continueButton")
     if await continue_button.count():
-        try:
-            await continue_button.click(timeout=5_000)
-        except Exception:
-            await page.evaluate("""() => {
-                const btn = document.getElementById('continueButton');
-                if (btn) btn.click();
-            }""")
+        await _click_with_js_fallback(page, continue_button, "continueButton")
 
     await page.wait_for_load_state("networkidle")
 
@@ -96,18 +92,46 @@ async def _handle_mfa(page):
         pass
 
     verify_button = page.locator("button#AuthenticateTOTPButton")
-    try:
-        await verify_button.click(timeout=5_000)
-    except Exception:
-        await page.evaluate("""() => {
-            const btn = document.getElementById('AuthenticateTOTPButton');
-            if (btn) {
-                btn.disabled = false;
-                btn.click();
-            }
-        }""")
+    await _click_with_js_fallback(page, verify_button, "AuthenticateTOTPButton", force_enable=True)
 
     await page.wait_for_load_state("networkidle")
+
+
+async def _click_with_js_fallback(page, locator, element_id: str, force_enable: bool = False):
+    try:
+        await locator.click(timeout=5_000)
+        return
+    except Exception:
+        pass
+
+    await page.evaluate(
+        """([elementId, forceEnable]) => {
+            const btn = document.getElementById(elementId);
+            if (!btn) {
+                return;
+            }
+            if (forceEnable) {
+                btn.disabled = false;
+            }
+            btn.click();
+        }""",
+        [element_id, force_enable],
+    )
+
+
+async def dump_interactive_elements(page, limit: int = 50):
+    elements = await page.query_selector_all(INTERACTIVE_SELECTOR)
+    print(f"\nFound {len(elements)} interactive elements. First {limit}:")
+    for i, el in enumerate(elements[:limit]):
+        tag = await el.evaluate("e => e.tagName")
+        text = await el.evaluate("e => (e.innerText || '').slice(0,80)")
+        id_ = await el.get_attribute("id") or ""
+        name = await el.get_attribute("name") or ""
+        cls = await el.get_attribute("class") or ""
+        type_ = await el.get_attribute("type") or ""
+        print(
+            f"[{i}] {tag} id={id_!r} name={name!r} class={cls!r} type={type_!r} text={text!r}"
+        )
 
 
 async def _wait_for_authenticated_page(page):
