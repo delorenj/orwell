@@ -1,0 +1,512 @@
+{
+  "name": "Orwell Clock-In/Out",
+  "nodes": [
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 27 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "b9f577d7-0eb5-478e-9dfb-d62d9da1ab80",
+      "name": "Clock In Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const waitSeconds = Math.floor(Math.random() * 1381);\nreturn items.map(item => ({ json: { ...item.json, waitSeconds } }));"
+      },
+      "id": "f7233288-d21a-4b5c-82c2-03bd35ab3d02",
+      "name": "Clock In Jitter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ $json.waitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "04bfc132-63a6-49af-b909-a00d4914df07",
+      "name": "Clock In Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "state",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "468a6451-34e8-4661-be35-d4e2f1765fb3",
+      "name": "Clock In State",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        820,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const allowed = ['clocked_out', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
+      },
+      "id": "6143bcf9-9669-4d02-b220-45c62fe8c3ba",
+      "name": "Clock In Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "in",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "3f3d8573-6cfb-499a-a34b-521c95b99bd4",
+      "name": "Clock In Action",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 52 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "013f7cfc-2af8-4f6f-875a-db708ab7657b",
+      "name": "Clock In Retry Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        220,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "state",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "d704703c-023e-4006-a58a-b8de158fe589",
+      "name": "Clock In Retry State",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        420,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const allowed = ['clocked_out', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
+      },
+      "id": "dbce0aca-bcc1-4bff-a773-7477ef726d5c",
+      "name": "Clock In Retry Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "in",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "0d901832-270f-4c2e-9c48-ebfbd416a9a8",
+      "name": "Clock In Retry Action",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        820,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 0 16 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "4c429b4a-d35a-4996-b46e-6aa5685c1cdc",
+      "name": "Clock Out Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        220,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const waitSeconds = Math.floor(Math.random() * 1381);\nreturn items.map(item => ({ json: { ...item.json, waitSeconds } }));"
+      },
+      "id": "4b3f0c7e-d201-4e8c-8e88-f6150d6db85b",
+      "name": "Clock Out Jitter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": "={{ $json.waitSeconds }}",
+        "unit": "seconds"
+      },
+      "id": "725678e1-f29b-4d4a-b96c-a348498a878d",
+      "name": "Clock Out Wait",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        620,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "state",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "52cccd78-6d9f-4e02-85ed-9e4a04bf76c3",
+      "name": "Clock Out State",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        820,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const allowed = ['clocked_in', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
+      },
+      "id": "ef4072c7-4cc0-476f-bf74-3530df91da89",
+      "name": "Clock Out Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1020,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "out",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "5db3e667-68ee-4706-bc6d-643d166885e5",
+      "name": "Clock Out Action",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        1220,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "custom",
+              "cronExpression": "0 25 16 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "7453c70d-6b51-4740-8ae3-15455763c5f8",
+      "name": "Clock Out Retry Trigger",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [
+        220,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "state",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "b7875244-e930-4fb7-9e0f-f35fd1020661",
+      "name": "Clock Out Retry State",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        420,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const allowed = ['clocked_in', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
+      },
+      "id": "b4229bfb-6228-4b9a-8c0a-e9caab72cb05",
+      "name": "Clock Out Retry Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        620,
+        860
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "out",
+        "repoPath": "/home/delorenj/code/clockin",
+        "pythonPath": "",
+        "timeoutSeconds": 600
+      },
+      "id": "d00e00b2-c2f1-438f-91c6-0e6fd0298f4c",
+      "name": "Clock Out Retry Action",
+      "type": "n8n-nodes-orwell.orwell",
+      "typeVersion": 1,
+      "position": [
+        820,
+        860
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Clock In Trigger": {
+      "main": [
+        [
+          {
+            "node": "Clock In Jitter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock In Jitter": {
+      "main": [
+        [
+          {
+            "node": "Clock In Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock In Wait": {
+      "main": [
+        [
+          {
+            "node": "Clock In State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock In State": {
+      "main": [
+        [
+          {
+            "node": "Clock In Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock In Filter": {
+      "main": [
+        [
+          {
+            "node": "Clock In Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock In Retry Trigger": {
+      "main": [
+        [
+          {
+            "node": "Clock In Retry State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock In Retry State": {
+      "main": [
+        [
+          {
+            "node": "Clock In Retry Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock In Retry Filter": {
+      "main": [
+        [
+          {
+            "node": "Clock In Retry Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out Trigger": {
+      "main": [
+        [
+          {
+            "node": "Clock Out Jitter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out Jitter": {
+      "main": [
+        [
+          {
+            "node": "Clock Out Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out Wait": {
+      "main": [
+        [
+          {
+            "node": "Clock Out State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out State": {
+      "main": [
+        [
+          {
+            "node": "Clock Out Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out Filter": {
+      "main": [
+        [
+          {
+            "node": "Clock Out Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out Retry Trigger": {
+      "main": [
+        [
+          {
+            "node": "Clock Out Retry State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out Retry State": {
+      "main": [
+        [
+          {
+            "node": "Clock Out Retry Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clock Out Retry Filter": {
+      "main": [
+        [
+          {
+            "node": "Clock Out Retry Action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [],
+  "id": "09df1706-8709-4329-9c77-6f489adc0979"
+}
