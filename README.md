@@ -80,6 +80,21 @@ Runtime parameters:
 
 The node executes `scripts/03_clock_action.py` and returns the action, paths, stdout, stderr, and screenshot path in the n8n item output.
 
+### Scheduling
+
+The weekday clock-in/out schedule that used to run from system `crontab` is now handled by the n8n workflow in `workflows/orwell-clock-in-out.json`.
+
+- **Clock In** — weekdays at 08:27 with a random 0–23 min jitter, plus a retry at 08:52.
+- **Clock Out** — weekdays at 16:00 with a random 0–23 min jitter, plus a retry at 16:25.
+
+Each branch first reads the current Orwell state and only performs the action if the state supports it, so retries are safe.
+
+To reinstall after changes:
+
+```bash
+n8n import:workflow --input=workflows/orwell-clock-in-out.json
+```
+
 Implementation notes:
 
 - This uses n8n's documented programmatic node shape with a `description` object plus `execute()` method.
