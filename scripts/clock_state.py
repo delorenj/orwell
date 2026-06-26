@@ -103,7 +103,11 @@ async def collect_today_row_state(page):
             const read = (el, name) => {
                 for (const input of el.querySelectorAll(`input[name="${name}"]`)) {
                     const value = input.value.trim();
-                    if (value) return value;
+                    if (!value) continue;
+                    const formControl = input.closest('.c-form-control');
+                    const ampmBtn = formControl && formControl.querySelector('.c-time-input-ampm-button');
+                    const ampm = ampmBtn ? ampmBtn.textContent.trim().toLowerCase() : '';
+                    return ampm ? `${value} ${ampm}` : value;
                 }
                 return '';
             };
