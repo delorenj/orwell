@@ -84,23 +84,54 @@ async def discover_clock_buttons(page):
 
 
 async def collect_today_row_state(page):
-    rows = page.locator(f'tr[data-group-date="{today_row_label()}"]')
+    label = today_row_label()
+
+    # The timesheet renders rows asynchronously after the clock buttons appear.
+    # Wait for today's group rows to exist before reading them.
+    try:
+        await page.wait_for_selector(f'tr[data-group-date="{label}"]', timeout=15_000)
+        await page.wait_for_timeout(500)
+    except Exception:
+        pass
+
+    rows = page.locator(f'tr[data-group-date="{label}"]')
     if await rows.count() == 0:
         return None
 
-    return await rows.first.evaluate(
-        """(el) => {
-            const read = (name) => {
-                const input = el.querySelector(`input[name="${name}"]`);
-                return input ? input.value.trim() : '';
+    candidates = await rows.evaluate_all(
+        """(rowEls) => {
+            const read = (el, name) => {
+                for (const input of el.querySelectorAll(`input[name="${name}"]`)) {
+                    const value = input.value.trim();
+                    if (value) return value;
+                }
+                return '';
             };
-            return {
-                start_time: read('start_time'),
-                end_time: read('end_time'),
-                total: read('total'),
-            };
+            return rowEls.map((row) => ({
+                isFooter: row.classList.contains('m-footer'),
+                start_time: read(row, 'start_time'),
+                end_time: read(row, 'end_time'),
+                total: read(row, 'total'),
+            }));
         }"""
     )
+
+    # Ignore footer/summary rows and rows with no punch data.
+    punch_rows = [
+        row for row in candidates
+        if not row["isFooter"] and (row["start_time"] or row["end_time"])
+    ]
+    if not punch_rows:
+        return None
+
+    # Prefer the currently-open punch (started but not yet ended).
+    for row in punch_rows:
+        if row["start_time"] and not row["end_time"]:
+            return {"start_time": row["start_time"], "end_time": row["end_time"], "total": row["total"]}
+
+    # No open punch: return the last completed punch for today.
+    last = punch_rows[-1]
+    return {"start_time": last["start_time"], "end_time": last["end_time"], "total": last["total"]}
 
 
 async def collect_clock_state(page) -> dict[str, Any]:
