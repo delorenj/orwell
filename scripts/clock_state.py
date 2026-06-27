@@ -152,9 +152,8 @@ def find_active_and_last_completed_rows(rows: list[dict[str, Any]]) -> tuple[dic
             if last_completed_row is None:
                 last_completed_row = row
             continue
-        # Active row: has a delete button (unsaved/in-progress entry) and is
-        # not fully punched out. A placeholder open punch has both fields empty.
-        if row.get("hasDelete") and active_row is None:
+        # Active row: has a start time but no end time, and is editable (has delete)
+        if start and not end and row.get("hasDelete") and active_row is None:
             active_row = row
     return active_row, last_completed_row
 
