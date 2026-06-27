@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -48,6 +48,46 @@ function resolvePythonPath(repoPath: string, requestedPythonPath: string): strin
 	return 'python3';
 }
 
+/**
+ * Camoufox (and other headed/headless browsers) may still need to talk to the
+ * X server for fonts/GPU even in headless mode. When n8n runs under a process
+ * manager like PM2, DISPLAY is often inherited but XAUTHORITY is not. Infer the
+ * most recent Xwayland/Mutter authority file for the current user so the browser
+ * can authenticate against the active display.
+ */
+function ensureXAuthority(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	if (!env.DISPLAY || env.XAUTHORITY) {
+		return env;
+	}
+
+	try {
+		if (typeof process.getuid !== 'function') {
+			return env;
+		}
+		const uid = process.getuid();
+		const xauthDir = `/run/user/${uid}`;
+		const entries = readdirSync(xauthDir);
+		const authFile = entries
+			.filter(
+				(name) =>
+					name.startsWith('.mutter-Xwaylandauth.') ||
+					name.startsWith('.Xauthority') ||
+					name.startsWith('.xauth'),
+			)
+			.map((name) => path.join(xauthDir, name))
+			.filter((fullPath) => existsSync(fullPath))
+			.sort((a, b) => statSync(b).mtime.getTime() - statSync(a).mtime.getTime())[0];
+
+		if (authFile) {
+			env.XAUTHORITY = authFile;
+		}
+	} catch {
+		// Best-effort: if we cannot infer the authority file, leave env as-is.
+	}
+
+	return env;
+}
+
 function scriptPathForOperation(repoPath: string, operation: OrwellOperation): string {
 	const scriptName = operation === 'state' ? '04_clock_state.py' : '03_clock_action.py';
 	return path.join(repoPath, 'scripts', scriptName);
@@ -75,7 +115,7 @@ async function runOrwellOperation(options: {
 		cwd: options.repoPath,
 		timeout: options.timeoutMs,
 		maxBuffer: 1024 * 1024,
-		env: process.env,
+		env: ensureXAuthority({ ...process.env }),
 	});
 
 	const stdout = result.stdout.trim();
