@@ -55,46 +55,78 @@ def clock_action_succeeded(after: dict, action: str) -> bool:
 
 
 async def confirm_modal_if_present(page):
-    """Confirm any 'Are you sure?' / missing-punch modal by clicking its Save button."""
+    """Confirm any warning/confirmation modal (missing punch, are-you-sure, etc.) by clicking Save."""
+    modal_selectors = '[aria-modal="true"], [role="alertdialog"], [role="dialog"], .modal, .c-modal'
+    keywords = ("are you sure", "missing previous", "missing punch", "warning")
     try:
         await page.wait_for_function(
-            """() => {
-                const text = document.body.innerText || '';
-                return text.includes('Are you sure') || text.includes('Missing previous');
+            """(selectors) => {
+                const els = Array.from(document.querySelectorAll(selectors));
+                return els.some((el) => {
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    const text = (el.innerText || '').toLowerCase();
+                    return ['are you sure', 'missing previous', 'missing punch', 'warning']
+                        .some((kw) => text.includes(kw));
+                });
             }""",
+            arg=modal_selectors,
             timeout=10_000,
         )
     except Exception:
         return False
 
     try:
-        save_buttons = page.locator("button:has-text('Save')")
-        count = await save_buttons.count()
-        visible = []
-        for i in range(count):
-            btn = save_buttons.nth(i)
-            if not await btn.is_visible():
-                continue
-            box = await btn.bounding_box()
-            if not box:
-                continue
-            visible.append((box["y"], btn))
-
-        if not visible:
-            return False
-
-        _, save_btn = max(visible, key=lambda item: item[0])
-        await save_btn.click()
-        await page.wait_for_load_state("networkidle")
-        await page.wait_for_function(
-            """() => {
-                const text = document.body.innerText || '';
-                return !text.includes('Are you sure') && !text.includes('Missing previous');
+        modal = await page.evaluate_handle(
+            """(selectors) => {
+                const els = Array.from(document.querySelectorAll(selectors));
+                return els.find((el) => {
+                    const style = window.getComputedStyle(el);
+                    if (style.display === 'none' || style.visibility === 'hidden') return false;
+                    const text = (el.innerText || '').toLowerCase();
+                    return ['are you sure', 'missing previous', 'missing punch', 'warning']
+                        .some((kw) => text.includes(kw));
+                });
             }""",
+            modal_selectors,
+        )
+        if not modal or await modal.evaluate("el => !el"):
+            return False
+        text = (await modal.inner_text()).lower()
+        print(f"Confirming modal: {text[:200]!r}", file=sys.stderr)
+
+        # Prefer the primary action button inside the modal; fall back to any Save.
+        save_btn = await modal.query_selector("button.m-primary")
+        if save_btn and not await save_btn.is_visible():
+            save_btn = None
+        if not save_btn:
+            candidates = await modal.query_selector_all("button")
+            for btn in candidates:
+                label = (await btn.inner_text()).strip().lower()
+                if label == "save" and await btn.is_visible():
+                    save_btn = btn
+                    break
+        if not save_btn:
+            return False
+        await save_btn.click()
+        print("Clicked modal Save button.", file=sys.stderr)
+        # Wait for the modal to leave the DOM and the page to settle.
+        await page.wait_for_function(
+            """(selectors) => {
+                const els = Array.from(document.querySelectorAll(selectors));
+                return !els.some((el) => {
+                    const style = window.getComputedStyle(el);
+                    return style.display !== 'none' && style.visibility !== 'hidden';
+                });
+            }""",
+            arg=modal_selectors,
             timeout=10_000,
         )
+        await page.wait_for_load_state("networkidle")
+        print("Modal dismissed.", file=sys.stderr)
         return True
-    except Exception:
+    except Exception as exc:
+        print(f"Modal confirmation failed: {exc}", file=sys.stderr)
         return False
 
 
@@ -138,9 +170,10 @@ async def perform_clock_action(action: str):
         chosen = choose_clock_button(candidates, action)
         await chosen["button"].scroll_into_view_if_needed()
         await chosen["button"].click()
-        await page.wait_for_load_state("networkidle")
         await confirm_modal_if_present(page)
 
+        # Read the post-action state from a freshly loaded timesheet so we
+        # don't race the portal's save/reload animation.
         after_state = await collect_stable_clock_state(page)
         if not clock_action_succeeded(after_state, action):
             await page.screenshot(path=f"outputs/clock_{action}_unverified.png", full_page=True)

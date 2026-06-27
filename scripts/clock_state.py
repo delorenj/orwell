@@ -83,59 +83,80 @@ async def discover_clock_buttons(page):
     return candidates
 
 
-async def collect_today_row_state(page):
-    label = today_row_label()
+async def wait_for_group_rows(page, timeout: int = 20_000):
+    """Wait until the timesheet rows have rendered in the DOM."""
+    await page.wait_for_function(
+        "() => document.querySelectorAll('tr[data-group-date]').length > 0",
+        timeout=timeout,
+    )
 
-    # The timesheet renders rows asynchronously after the clock buttons appear.
-    # Wait for today's group rows to exist before reading them.
-    try:
-        await page.wait_for_selector(f'tr[data-group-date="{label}"]', timeout=15_000)
-        await page.wait_for_timeout(500)
-    except Exception:
-        pass
 
-    rows = page.locator(f'tr[data-group-date="{label}"]')
-    if await rows.count() == 0:
-        return None
+async def collect_group_rows(page) -> list[dict[str, Any]]:
+    """Return all timesheet group rows with their input values.
 
-    candidates = await rows.evaluate_all(
-        """(rowEls) => {
-            const read = (el, name) => {
-                for (const input of el.querySelectorAll(`input[name="${name}"]`)) {
-                    const value = input.value.trim();
-                    if (!value) continue;
-                    const formControl = input.closest('.c-form-control');
-                    const ampmBtn = formControl && formControl.querySelector('.c-time-input-ampm-button');
-                    const ampm = ampmBtn ? ampmBtn.textContent.trim().toLowerCase() : '';
-                    return ampm ? `${value} ${ampm}` : value;
-                }
-                return '';
+    Uses JS evaluation because Camoufox/Playwright attribute selectors can fail
+    to match rows that are rendered lazily after the clock controls appear.
+    """
+    return await page.evaluate(
+        """() => {
+            const readAmpm = (input) => {
+                const fc = input && input.closest('.c-form-control');
+                const btn = fc && fc.querySelector('.c-time-input-ampm-button');
+                return btn ? btn.textContent.trim().toLowerCase() : '';
             };
-            return rowEls.map((row) => ({
-                isFooter: row.classList.contains('m-footer'),
-                start_time: read(row, 'start_time'),
-                end_time: read(row, 'end_time'),
-                total: read(row, 'total'),
-            }));
+            const rows = Array.from(document.querySelectorAll('tr[data-group-date]'));
+            return rows.map((row) => {
+                const group = row.getAttribute('data-group-date');
+                const isFooter = row.classList.contains('m-footer');
+                const hasDelete = row.querySelector('button[aria-label*="Delete"], button.icon-delete, i.icon-delete') !== null;
+                const startInputs = Array.from(row.querySelectorAll('input[name="start_time"]'));
+                const endInputs = Array.from(row.querySelectorAll('input[name="end_time"]'));
+                const firstNonEmpty = (inputs) => {
+                    for (const input of inputs) {
+                        const v = input.value.trim();
+                        if (v) return v;
+                    }
+                    return inputs[0] ? inputs[0].value.trim() : '';
+                };
+                const start = firstNonEmpty(startInputs);
+                const end = firstNonEmpty(endInputs);
+                const startInput = startInputs.find(i => i.value.trim() === start) || startInputs[0];
+                const endInput = endInputs.find(i => i.value.trim() === end) || endInputs[0];
+                const startAmpm = start ? readAmpm(startInput) : '';
+                const endAmpm = end ? readAmpm(endInput) : '';
+                const totalEl = row.querySelector('.c-table__content-inactive, .u-medium-font');
+                const total = totalEl ? totalEl.innerText.trim() : '';
+                return {
+                    group,
+                    isFooter,
+                    hasDelete,
+                    start_time: start ? (startAmpm ? `${start} ${startAmpm}` : start) : '',
+                    end_time: end ? (endAmpm ? `${end} ${endAmpm}` : end) : '',
+                    total,
+                };
+            });
         }"""
     )
 
-    # Ignore footer/summary rows and rows with no punch data.
-    punch_rows = [
-        row for row in candidates
-        if not row["isFooter"] and (row["start_time"] or row["end_time"])
-    ]
-    if not punch_rows:
-        return None
 
-    # Prefer the currently-open punch (started but not yet ended).
-    for row in punch_rows:
-        if row["start_time"] and not row["end_time"]:
-            return {"start_time": row["start_time"], "end_time": row["end_time"], "total": row["total"]}
-
-    # No open punch: return the last completed punch for today.
-    last = punch_rows[-1]
-    return {"start_time": last["start_time"], "end_time": last["end_time"], "total": last["total"]}
+def find_active_and_last_completed_rows(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Return the in-progress punch row and the most recent completed row."""
+    active_row = None
+    last_completed_row = None
+    for row in reversed(rows):
+        if row.get("isFooter"):
+            continue
+        start = (row.get("start_time") or "").strip()
+        end = (row.get("end_time") or "").strip()
+        if start and end:
+            if last_completed_row is None:
+                last_completed_row = row
+            continue
+        # Active row: has a delete button (unsaved/in-progress entry) and is
+        # not fully punched out. A placeholder open punch has both fields empty.
+        if row.get("hasDelete") and active_row is None:
+            active_row = row
+    return active_row, last_completed_row
 
 
 async def collect_clock_state(page) -> dict[str, Any]:
@@ -144,34 +165,41 @@ async def collect_clock_state(page) -> dict[str, Any]:
     body_text = (await page.locator("body").inner_text()).lower()
     messages = [hint for hint in SUCCESS_HINTS if hint in body_text]
     failures = [hint for hint in FAILURE_HINTS if hint in body_text]
-    today_row = await collect_today_row_state(page)
+
+    await wait_for_group_rows(page)
+    rows = await collect_group_rows(page)
+    active_row, last_completed_row = find_active_and_last_completed_rows(rows)
+
+    representative_row = active_row or last_completed_row
+    today_row = None
+    if representative_row:
+        today_row = {
+            "start_time": representative_row["start_time"],
+            "end_time": representative_row["end_time"],
+            "total": representative_row["total"],
+            "group": representative_row["group"],
+        }
+
     return {
         "button_texts": button_texts,
         "messages": messages,
         "failures": failures,
         "today_row": today_row,
-        "derived_status": derive_clock_status(today_row, button_texts, failures),
+        "derived_status": derive_clock_status(active_row, last_completed_row, failures),
     }
 
 
-def derive_clock_status(today_row: dict[str, str] | None, button_texts: list[str], failures: list[str]) -> str:
+def derive_clock_status(
+    active_row: dict[str, Any] | None,
+    last_completed_row: dict[str, Any] | None,
+    failures: list[str],
+) -> str:
     if failures:
         return "error"
-
-    row = today_row or {}
-    start_time = (row.get("start_time") or "").strip()
-    end_time = (row.get("end_time") or "").strip()
-
-    if start_time and not end_time:
+    if active_row:
         return "clocked_in"
-    if start_time and end_time:
+    if last_completed_row:
         return "clocked_out"
-
-    if any(text in ACTION_LABELS["out"] for text in button_texts):
-        return "clocked_in"
-    if any(text in ACTION_LABELS["in"] for text in button_texts):
-        return "clocked_out"
-
     return "unknown"
 
 

@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
+        "mode": "runOnceForAllItems",
         "jsCode": "const waitSeconds = Math.floor(Math.random() * 1381);\nreturn items.map(item => ({ json: { ...item.json, waitSeconds } }));"
       },
       "id": "f7233288-d21a-4b5c-82c2-03bd35ab3d02",
@@ -68,7 +68,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
+        "mode": "runOnceForAllItems",
         "jsCode": "const allowed = ['clocked_out', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
       },
       "id": "6143bcf9-9669-4d02-b220-45c62fe8c3ba",
@@ -134,7 +134,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
+        "mode": "runOnceForAllItems",
         "jsCode": "const allowed = ['clocked_out', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
       },
       "id": "dbce0aca-bcc1-4bff-a773-7477ef726d5c",
@@ -184,7 +184,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
+        "mode": "runOnceForAllItems",
         "jsCode": "const waitSeconds = Math.floor(Math.random() * 1381);\nreturn items.map(item => ({ json: { ...item.json, waitSeconds } }));"
       },
       "id": "4b3f0c7e-d201-4e8c-8e88-f6150d6db85b",
@@ -229,7 +229,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
+        "mode": "runOnceForAllItems",
         "jsCode": "const allowed = ['clocked_in', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
       },
       "id": "ef4072c7-4cc0-476f-bf74-3530df91da89",
@@ -295,7 +295,7 @@
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
+        "mode": "runOnceForAllItems",
         "jsCode": "const allowed = ['clocked_in', 'unknown'];\nconst status = items[0].json.state?.derived_status;\nif (allowed.includes(status)) return items;\nreturn [];"
       },
       "id": "b4229bfb-6228-4b9a-8c0a-e9caab72cb05",
