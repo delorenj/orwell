@@ -7,3 +7,6 @@ outputs/*.log
 __pycache__/
 *.pyc
 .DS_Store
+
+# Agent session exports: transcripts, not source (2026-06-27 ones leaked portal credentials)
+kimi-export-session_*.md
