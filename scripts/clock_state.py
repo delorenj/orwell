@@ -139,23 +139,68 @@ async def collect_group_rows(page) -> list[dict[str, Any]]:
     )
 
 
-def find_active_and_last_completed_rows(rows: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    """Return the in-progress punch row and the most recent completed row."""
+def _row_text(row: dict[str, Any], key: str) -> str:
+    return (row.get(key) or "").strip()
+
+
+def _row_group(row: dict[str, Any]) -> str:
+    return _row_text(row, "group") or "unknown date"
+
+
+def _is_today_row(row: dict[str, Any]) -> bool:
+    return _row_group(row) == today_row_label()
+
+
+def _has_work_total(row: dict[str, Any]) -> bool:
+    total = _row_text(row, "total").lower().replace("hrs", "").strip()
+    if not total:
+        return False
+    try:
+        return float(total) > 0
+    except ValueError:
+        return False
+
+
+def find_active_and_last_completed_rows(
+    rows: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[str]]:
+    """Return the in-progress punch row, the most recent completed row, and row-level failures."""
     active_row = None
     last_completed_row = None
+    row_failures = []
     for row in reversed(rows):
         if row.get("isFooter"):
             continue
-        start = (row.get("start_time") or "").strip()
-        end = (row.get("end_time") or "").strip()
+        start = _row_text(row, "start_time")
+        end = _row_text(row, "end_time")
+
+        if end and not start:
+            row_failures.append(
+                f"Malformed punch row on {_row_group(row)}: blank From with To={end!r}. "
+                "Refusing automated clock action."
+            )
+            continue
+
         if start and end:
             if last_completed_row is None:
                 last_completed_row = row
             continue
-        # Active row: has a start time but no end time, and is editable (has delete)
-        if start and not end and row.get("hasDelete") and active_row is None:
-            active_row = row
-    return active_row, last_completed_row
+
+        if start and not end:
+            if active_row is None:
+                active_row = row
+            continue
+
+        if not start and not end:
+            if _has_work_total(row):
+                row_failures.append(
+                    f"Malformed punch row on {_row_group(row)}: blank From and To with total={_row_text(row, 'total')!r}. "
+                    "Refusing automated clock action."
+                )
+                continue
+            if row.get("hasDelete") and not _is_today_row(row) and active_row is None:
+                active_row = row
+    return active_row, last_completed_row, row_failures
 
 
 async def collect_clock_state(page) -> dict[str, Any]:
@@ -167,7 +212,8 @@ async def collect_clock_state(page) -> dict[str, Any]:
 
     await wait_for_group_rows(page)
     rows = await collect_group_rows(page)
-    active_row, last_completed_row = find_active_and_last_completed_rows(rows)
+    active_row, last_completed_row, row_failures = find_active_and_last_completed_rows(rows)
+    failures.extend(row_failures)
 
     representative_row = active_row or last_completed_row
     today_row = None
@@ -204,9 +250,9 @@ def derive_clock_status(
 
 def state_supports_action(status: str, action: str) -> bool:
     if action == "in":
-        return status in {"clocked_out", "unknown"}
+        return status == "clocked_out"
     if action == "out":
-        return status in {"clocked_in", "unknown"}
+        return status == "clocked_in"
     raise ValueError(f"Unknown action: {action}")
 
 

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import sys
 
 from camoufox.async_api import AsyncCamoufox
@@ -12,6 +13,31 @@ from clock_state import (
     state_supports_action,
     wait_for_clock_controls,
 )
+
+DANGEROUS_MODAL_HINTS = (
+    "missing previous in punch",
+    "missing previous out punch",
+    "missing punch",
+    "timesheet change request",
+)
+
+
+def compact_modal_text(text: str) -> str:
+    compact = " ".join(text.split())
+    return compact if len(compact) <= 300 else f"{compact[:297]}..."
+
+
+def modal_requires_manual_repair(text: str) -> bool:
+    lowered = text.lower()
+    return any(hint in lowered for hint in DANGEROUS_MODAL_HINTS)
+
+
+def allow_clock_out_repair_probe(action: str, state: dict) -> bool:
+    return (
+        action == "out"
+        and os.environ.get("ORWELL_ALLOW_CLOCK_OUT_REPAIR_PROBE") == "1"
+        and "clock out" in state.get("button_texts", [])
+    )
 
 
 def _pick_unique_candidate(candidates, predicate, action: str, match_kind: str):
@@ -94,6 +120,11 @@ async def confirm_modal_if_present(page):
             return False
         text = (await modal.inner_text()).lower()
         print(f"Confirming modal: {text[:200]!r}", file=sys.stderr)
+        if modal_requires_manual_repair(text):
+            raise RuntimeError(
+                "Portal requires manual timesheet repair before an automated clock action can continue: "
+                f"{compact_modal_text(text)}"
+            )
 
         # Prefer the primary action button inside the modal; fall back to any Save.
         save_btn = await modal.query_selector("button.m-primary")
@@ -125,6 +156,8 @@ async def confirm_modal_if_present(page):
         await page.wait_for_load_state("networkidle")
         print("Modal dismissed.", file=sys.stderr)
         return True
+    except RuntimeError:
+        raise
     except Exception as exc:
         print(f"Modal confirmation failed: {exc}", file=sys.stderr)
         return False
@@ -150,15 +183,31 @@ async def perform_clock_action(action: str):
         await page.screenshot(path="outputs/portal_logged_in.png", full_page=True)
 
         before_state = await collect_stable_clock_state(page)
-        if before_state["failures"]:
+        repair_probe = allow_clock_out_repair_probe(action, before_state)
+        if before_state["failures"] and not repair_probe:
             await page.screenshot(path=f"outputs/clock_{action}_blocked.png", full_page=True)
             raise RuntimeError(
                 f"Portal already shows a punch error before clock-{action}: {state_summary(before_state)}"
             )
+        if before_state["failures"] and repair_probe:
+            print(
+                "Clock-out repair probe continuing despite pre-existing row failures; "
+                "missing-punch repair modals will not be confirmed.",
+                file=sys.stderr,
+            )
 
-        if not state_supports_action(before_state["derived_status"], action):
+        target_status = "clocked_in" if action == "in" else "clocked_out"
+        if before_state["derived_status"] == target_status:
+            await page.screenshot(path=f"outputs/clock_{action}.png", full_page=True)
+            print(f"Clock-{action} already satisfied; no action needed.")
+            print("Final state:", state_summary(before_state))
+            print("Final URL:", page.url)
+            print("Title:", await page.title())
+            return
+        if not state_supports_action(before_state["derived_status"], action) and not repair_probe:
+            await page.screenshot(path=f"outputs/clock_{action}_blocked.png", full_page=True)
             raise RuntimeError(
-                f"Refusing clock-{action}: current state says no action needed. {state_summary(before_state)}"
+                f"Refusing clock-{action}: current state is not actionable. {state_summary(before_state)}"
             )
 
         candidates = await discover_clock_buttons(page)
