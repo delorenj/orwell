@@ -1,4 +1,6 @@
 import os
+import shutil
+import subprocess
 import sys
 
 import pyotp
@@ -6,6 +8,39 @@ from dotenv import load_dotenv
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 load_dotenv()
+
+SECRET_NAMES = ("TRIUMPH_USERNAME", "TRIUMPH_PASSWORD", "TRIUMPH_TOTP_SECRET")
+
+
+def op_binary() -> str:
+    # n8n runs these scripts with PATH=<node>/bin:/usr/bin:/bin, which misses ~/.local/bin.
+    return shutil.which("op") or os.path.expanduser("~/.local/bin/op")
+
+
+def resolve_secret_refs() -> None:
+    """Replace op://vault/item/field values with the secret (`op read`).
+
+    .env holds only 1Password references (item "Orwell - Triumph timesheet portal
+    (saashr)"); the value is read at run time with the caller's
+    OP_SERVICE_ACCOUNT_TOKEN (n8n's launcher exports it) or the user's op session.
+    """
+    for name in SECRET_NAMES:
+        ref = os.environ.get(name, "")
+        if not ref.startswith("op://"):
+            continue
+        try:
+            value = subprocess.run(
+                [op_binary(), "read", "--no-newline", ref],
+                check=True, capture_output=True, text=True, timeout=30,
+            ).stdout
+        except (OSError, subprocess.SubprocessError) as exc:
+            detail = getattr(exc, "stderr", "") or str(exc)
+            print(f"Error: could not read {name} from 1Password ({ref}): {detail.strip()}", file=sys.stderr)
+            sys.exit(1)
+        os.environ[name] = value
+
+
+resolve_secret_refs()
 
 BASE_URL = "https://secure5.saashr.com/ta/CH50003.home?showAdmin=1&Ext=login&sft=HOSCCFOFIU"
 TIMESHEET_HASH = "time/timesheet/timesheets?tab=TIME_ENTRY"

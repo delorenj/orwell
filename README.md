@@ -12,25 +12,33 @@ Orwell is headless, stealth browser automation for the Triumph (Saashr) clock-in
 ## Setup
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-camoufox fetch
+mise x -- uv venv --python 3.12 .venv
+mise x -- uv pip install --python .venv/bin/python -r requirements.txt pytest
+.venv/bin/python -m camoufox fetch     # browser into ~/.cache/camoufox
+.venv/bin/python -m pytest -q tests
 ```
+
+The `.venv` is load-bearing: the n8n Orwell node runs `<repo>/.venv/bin/python`
+and falls back to `python3` from n8n's PATH, which has none of these packages.
+When the venv went missing, every Safe Clock-In/Out failed with
+`ModuleNotFoundError: No module named 'camoufox'` (found 2026-11-06).
+`requirements.txt` pins the versions verified against the portal.
 
 ## Configure credentials
 
 ```bash
 cp .env.example .env
-# edit .env with your Triumph credentials and TOTP secret
 ```
 
-The `.env` needs three values:
+`.env` holds 1Password references, never values. `scripts/auth.py` resolves each
+`op://` value with `op read` at run time, using `OP_SERVICE_ACCOUNT_TOKEN` (n8n's
+launcher exports it) or your op session. The item is "Orwell - Triumph timesheet
+portal (saashr)" in DeLoSecrets:
 
 ```dotenv
-TRIUMPH_USERNAME=your_username
-TRIUMPH_PASSWORD=your_password
-TRIUMPH_TOTP_SECRET=YOUR_TOTP_SECRET
+TRIUMPH_USERNAME="op://DeLoSecrets/hgtmc5r5l7f7w5iul3rwtljvsy/username"
+TRIUMPH_PASSWORD="op://DeLoSecrets/hgtmc5r5l7f7w5iul3rwtljvsy/password"
+TRIUMPH_TOTP_SECRET="op://DeLoSecrets/hgtmc5r5l7f7w5iul3rwtljvsy/totp secret"
 ```
 
 ## Usage
@@ -108,7 +116,7 @@ Sources:
 
 ## Notes
 
-- Credentials are read from `.env` and never committed (see `.gitignore`).
+- Credentials live in 1Password; `.env` carries only `op://` references.
 - The login script fills the visible password field (`PasswordView`); the portal's JavaScript copies it into the hidden `Password` field before submission.
 - MFA is handled automatically: the script selects the **Authenticator app** option, generates a TOTP code from `TRIUMPH_TOTP_SECRET`, and submits it.
 - The clock-action script discovers buttons by text (`clock in`, `clock out`, etc.) and confirms any missing-punch warning dialog by clicking **Save**.
